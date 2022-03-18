@@ -47,16 +47,23 @@ class SlackExporter:
         with open(filename, "w") as outfile:
             json.dump(body, outfile)
 
-    def _recconect(self, channel_id: str, cursor: str, sleep_seconds: int):
-        if sleep_seconds > 10:
-            raise ValueError("to many redirects")
+    def _conversations_with_recconect(
+        self, channel_id: str, cursor: str, sleep_seconds: int
+    ):
+        if sleep_seconds > 20:
+            raise ValueError("too many reconnects")
         try:
-            return self.client.conversations_history(
-                channel=channel_id, cursor=cursor
-            )
+            if cursor:
+                return self.client.conversations_history(
+                    channel=channel_id, cursor=cursor
+                )
+            else:
+                return self.client.conversations_history(channel=channel_id)
         except:
             time.sleep(sleep_seconds)
-            return self._recconect(channel_id, cursor, sleep_seconds + 1)
+            return self._conversations_with_recconect(
+                channel_id, cursor, sleep_seconds + 1
+            )
 
     def _backup_channel(self, channel_name: str, channel_id: str) -> None:
         try:
@@ -64,7 +71,9 @@ class SlackExporter:
             # Call the conversations.history method using the WebClient
             # conversations.history returns the first 100 messages by default
             # These results are paginated
-            result = self.client.conversations_history(channel=channel_id)
+            result = self._conversations_with_recconect(
+                channel_id=channel_id, cursor="", sleep_seconds=1
+            )
             all_message = []
             all_message += result["messages"]
             while result["has_more"]:
@@ -77,7 +86,7 @@ class SlackExporter:
                     )
                 except IncompleteRead:
                     time.sleep(1)
-                    result = self._recconect(
+                    result = self._conversations_with_recconect(
                         channel_id,
                         cursor=result["response_metadata"]["next_cursor"],
                         sleep_seconds=1,
