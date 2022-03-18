@@ -12,4 +12,4 @@ This script backups Slack channels(public and private), dms, users, and channels
 ## Usage
 1. Clone or download this project.
 2. Go to project folder, and install requirements by pip: `pip install -r requirements.txt`
-3. Execute script `python mail.py -t <oauth token>`
+3. Execute script `python main.py -t <oauth token>`
