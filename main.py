@@ -8,7 +8,9 @@ Then provide the bot token to this script with the list of channels.
 
 import argparse
 from datetime import datetime
+from http.client import IncompleteRead
 import json
+import time
 from typing import Optional, List
 import os
 
@@ -45,6 +47,17 @@ class SlackExporter:
         with open(filename, "w") as outfile:
             json.dump(body, outfile)
 
+    def _recconect(self, channel_id: str, cursor: str, sleep_seconds: int):
+        if sleep_seconds > 10:
+            raise ValueError("to many redirects")
+        try:
+            return self.client.conversations_history(
+                channel=channel_id, cursor=cursor
+            )
+        except:
+            time.sleep(sleep_seconds)
+            return self._recconect(channel_id, cursor, sleep_seconds + 1)
+
     def _backup_channel(self, channel_name: str, channel_id: str) -> None:
         try:
             print("Getting messages from", channel_name)
@@ -57,10 +70,19 @@ class SlackExporter:
             while result["has_more"]:
                 if all_message:
                     print(f"\tRead {len(all_message)}\tGetting more...")
-                result = self.client.conversations_history(
-                    channel=channel_id,
-                    cursor=result["response_metadata"]["next_cursor"],
-                )
+                try:
+                    result = self.client.conversations_history(
+                        channel=channel_id,
+                        cursor=result["response_metadata"]["next_cursor"],
+                    )
+                except IncompleteRead:
+                    time.sleep(1)
+                    result = self._recconect(
+                        channel_id,
+                        cursor=result["response_metadata"]["next_cursor"],
+                        sleep_seconds=1,
+                    )
+
                 all_message += result["messages"]
             # Save to disk
             filename = f"{channel_name}.json"
