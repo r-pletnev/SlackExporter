@@ -8,12 +8,12 @@ Then provide the bot token to this script with the list of channels.
 
 import argparse
 from datetime import datetime
-from http.client import IncompleteRead
 import json
 import time
-from typing import Optional
+from typing import Optional, List
 import os
 
+import inquirer
 from slack_sdk.web.client import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -146,16 +146,39 @@ class SlackExporter:
 
         return channel_store
 
+    def show_channels(self, message: str, channels: dict) -> Optional[dict]:
+        questions = [
+            inquirer.Checkbox(
+                "channels",
+                message=message,
+                choices=list(channels.keys()),
+            ),
+        ]
+        return inquirer.prompt(questions=questions)
+
     def backup(self, only_dm: bool):
         if not only_dm:
             channels = self.get_list_channels()
-            for chan_name, chan_id in channels.items():
-                self._backup_channel(chan_name, chan_id)
+            answers = self.show_channels(
+                channels=channels, message="Select channels to download"
+            )
+            if answers:
+                selected_channels = answers.get("channels")
+                for chan_name, chan_id in channels.items():
+                    if chan_name in selected_channels:
+                        self._backup_channel(chan_name, chan_id)
 
         users_store = self.get_users()
         dms = self.get_list_dm_channels(users_store)
+        answers = self.show_channels(
+            channels=dms, message="Select DM to download"
+        )
+        if answers is None:
+            raise ValueError("You have to select at least one channel")
+        selected_channels = answers.get("channels")
         for chan_name, chan_id in dms.items():
-            self._backup_channel(chan_name, chan_id)
+            if chan_name in selected_channels:
+                self._backup_channel(chan_name, chan_id)
 
 
 if __name__ == "__main__":
